@@ -1,0 +1,259 @@
+@page "/pedidos"
+@rendermode InteractiveServer
+
+@using PackingApp.Services
+@inject PedidosService PedidosService
+
+<PageTitle>Pedidos</PageTitle>
+
+<div class="container-fluid mt-4">
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <h1>Pedidos</h1>
+        </div>
+        <div class="col-md-6 text-end">
+            <button class="btn btn-success me-2" @onclick="MostrarFormulario">
+                <span class="bi bi-plus-circle"></span> Nuevo
+            </button>
+            <button class="btn btn-primary" @onclick="RefreshData">
+                <span class="bi bi-arrow-clockwise"></span> Actualizar
+            </button>
+        </div>
+    </div>
+
+    @if (cargando)
+    {
+        <div class="alert alert-info">
+            <span class="spinner-border spinner-border-sm me-2"></span>
+            Cargando pedidos...
+        </div>
+    }
+    else if (pedidosResult == null)
+    {
+        <div class="alert alert-danger">
+            Error al cargar los pedidos
+        </div>
+    }
+    else
+    {
+        <div class="card">
+            <div class="card-body">
+                @if (pedidosResult.Items.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Número de Pedido</th>
+                                    <th>Empresa</th>
+                                    <th>Estado</th>
+                                    <th>Fecha Pedido</th>
+                                    <th>Fecha Entrega</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var pedido in pedidosResult.Items)
+                                {
+                                    <tr>
+                                        <td><strong>@pedido.NumeroPedido</strong></td>
+                                        <td>@pedido.EmpresaNombre</td>
+                                        <td>
+                                            <span class="badge bg-info">@pedido.EstadoNombre</span>
+                                        </td>
+                                        <td>@pedido.FechaPedido</td>
+                                        <td>@pedido.FechaEntrega</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => DeletePedido(pedido.Id)">
+                                                <span class="bi bi-trash"></span>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Paginación -->
+                    <nav aria-label="Paginación">
+                        <ul class="pagination justify-content-center mt-4">
+                            <li class="page-item @(pedidosResult.PageNumber == 1 ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => LoadPage(1)">Primera</button>
+                            </li>
+                            <li class="page-item @(!pedidosResult.HasPreviousPage ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => LoadPage(pedidosResult.PageNumber - 1)">Anterior</button>
+                            </li>
+
+                            @for (int i = Math.Max(1, pedidosResult.PageNumber - 2); i <= Math.Min(pedidosResult.TotalPages, pedidosResult.PageNumber + 2); i++)
+                            {
+                                <li class="page-item @(i == pedidosResult.PageNumber ? "active" : "")">
+                                    <button class="page-link" @onclick="() => LoadPage(i)">@i</button>
+                                </li>
+                            }
+
+                            <li class="page-item @(!pedidosResult.HasNextPage ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => LoadPage(pedidosResult.PageNumber + 1)">Siguiente</button>
+                            </li>
+                            <li class="page-item @(pedidosResult.PageNumber == pedidosResult.TotalPages ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => LoadPage(pedidosResult.TotalPages)">Última</button>
+                            </li>
+                        </ul>
+                    </nav>
+
+                    <div class="alert alert-secondary mt-3">
+                        <small>Mostrando <strong>@pedidosResult.Items.Count</strong> de <strong>@pedidosResult.TotalCount</strong> pedidos (Página @pedidosResult.PageNumber de @pedidosResult.TotalPages)</small>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-info">
+                        No hay pedidos registrados
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Modal de Nuevo Pedido -->
+@if (mostrarFormulario)
+{
+    <div class="modal d-block" style="background-color: rgba(0,0,0,0.5);" role="dialog">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Nuevo Pedido</h5>
+                    <button type="button" class="btn-close" @onclick="OcultarFormulario"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="nuevoEstado" class="form-label">Estado ID</label>
+                        <input type="number" class="form-control" id="nuevoEstado" @bind="nuevoPedido.EstadoPedidoId" placeholder="1">
+                    </div>
+                    <div class="mb-3">
+                        <label for="nuevaCantidad" class="form-label">Cantidad</label>
+                        <input type="number" class="form-control" id="nuevaCantidad" @bind="nuevoPedido.Cantidad" placeholder="10">
+                    </div>
+                    <div class="mb-3">
+                        <label for="nuevasUnidades" class="form-label">Unidades del Formato</label>
+                        <input type="number" class="form-control" id="nuevasUnidades" @bind="nuevoPedido.UnidadesDelFormato" placeholder="5">
+                    </div>
+                    <div class="mb-3">
+                        <label for="nuevoProducto" class="form-label">Producto ID</label>
+                        <input type="number" class="form-control" id="nuevoProducto" @bind="nuevoPedido.ProductoId" placeholder="1">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="OcultarFormulario">Cancelar</button>
+                    <button type="button" class="btn btn-primary" @onclick="CrearPedido">Crear</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private PaginatedResult<PedidoDto>? pedidosResult;
+    private bool cargando = true;
+    private int paginaActual = 1;
+    private const int elementosPorPagina = 10;
+    private bool mostrarFormulario = false;
+
+    private class NuevoPedidoForm
+    {
+        public int EstadoPedidoId { get; set; }
+        public int Cantidad { get; set; }
+        public int UnidadesDelFormato { get; set; }
+        public int ProductoId { get; set; }
+    }
+
+    private NuevoPedidoForm nuevoPedido = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPage(1);
+    }
+
+    private async Task LoadPage(int page)
+    {
+        try
+        {
+            cargando = true;
+            paginaActual = page;
+            pedidosResult = await PedidosService.GetPedidosAsync(page, elementosPorPagina);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private async Task RefreshData()
+    {
+        await LoadPage(paginaActual);
+    }
+
+    private async Task DeletePedido(string id)
+    {
+        var confirmed = await JSRuntime.InvokeAsync<bool>("SwalHelper.confirmDelete", "¿Eliminar pedido?", "Esta acción no se puede deshacer.");
+        if (!confirmed) return;
+
+        try
+        {
+            await PedidosService.DeletePedidoAsync(id);
+            await RefreshData();
+            await JSRuntime.InvokeVoidAsync("SwalHelper.success", "Éxito", "Pedido eliminado correctamente");
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("SwalHelper.error", "Error", $"Error al eliminar: {ex.Message}");
+        }
+    }
+
+    private void MostrarFormulario()
+    {
+        nuevoPedido = new();
+        mostrarFormulario = true;
+    }
+
+    private void OcultarFormulario()
+    {
+        mostrarFormulario = false;
+    }
+
+    private async Task CrearPedido()
+    {
+        if (nuevoPedido.EstadoPedidoId == 0 || 
+            nuevoPedido.Cantidad == 0 ||
+            nuevoPedido.UnidadesDelFormato == 0 ||
+            nuevoPedido.ProductoId == 0)
+        {
+            await JSRuntime.InvokeVoidAsync("SwalHelper.warning", "Validación", "Por favor completa todos los campos");
+            return;
+        }
+
+        try
+        {
+            var usuarioId = "test-user"; // TODO: Obtener del contexto autenticado
+            await PedidosService.CreatePedidoAsync(
+                usuarioId,
+                nuevoPedido.EstadoPedidoId,
+                nuevoPedido.Cantidad,
+                nuevoPedido.UnidadesDelFormato,
+                nuevoPedido.ProductoId);
+            OcultarFormulario();
+            await RefreshData();
+            await JSRuntime.InvokeVoidAsync("SwalHelper.success", "Éxito", "Pedido creado exitosamente");
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("SwalHelper.error", "Error", $"Error al crear pedido: {ex.Message}");
+        }
+    }
+
+    @inject IJSRuntime JSRuntime
+}

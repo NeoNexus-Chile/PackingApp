@@ -1,0 +1,234 @@
+@page "/productos/formatos"
+@rendermode InteractiveServer
+
+@using PackingApp.Services
+@inject ProductosService ProductosService
+
+<PageTitle>Formatos de Productos</PageTitle>
+
+<div class="container-fluid mt-4">
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <h1>Formatos de Productos</h1>
+        </div>
+        <div class="col-md-6 text-end">
+            <button class="btn btn-success me-2" @onclick="MostrarFormulario">
+                <span class="bi bi-plus-circle"></span> Nuevo
+            </button>
+            <button class="btn btn-primary" @onclick="RefreshData">
+                <span class="bi bi-arrow-clockwise"></span> Actualizar
+            </button>
+        </div>
+    </div>
+
+    @if (cargando)
+    {
+        <div class="alert alert-info">
+            <span class="spinner-border spinner-border-sm me-2"></span>
+            Cargando formatos...
+        </div>
+    }
+    else if (formatosResult == null)
+    {
+        <div class="alert alert-danger">
+            Error al cargar los formatos
+        </div>
+    }
+    else
+    {
+        <div class="card">
+            <div class="card-body">
+                @if (formatosResult.Items.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Nombre</th>
+                                    <th>Descripción</th>
+                                    <th>Fecha Creación</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var formato in formatosResult.Items)
+                                {
+                                    <tr>
+                                        <td><strong>@formato.Nombre</strong></td>
+                                        <td>@formato.Descripcion</td>
+                                        <td>@formato.FechaCreacion</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteFormato(formato.Id)">
+                                                <span class="bi bi-trash"></span>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Paginación -->
+                    <nav aria-label="Paginación">
+                        <ul class="pagination justify-content-center mt-4">
+                            <li class="page-item @(formatosResult.PageNumber == 1 ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => LoadPage(1)">Primera</button>
+                            </li>
+                            <li class="page-item @(!formatosResult.HasPreviousPage ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => LoadPage(formatosResult.PageNumber - 1)">Anterior</button>
+                            </li>
+
+                            @for (int i = Math.Max(1, formatosResult.PageNumber - 2); i <= Math.Min(formatosResult.TotalPages, formatosResult.PageNumber + 2); i++)
+                            {
+                                <li class="page-item @(i == formatosResult.PageNumber ? "active" : "")">
+                                    <button class="page-link" @onclick="() => LoadPage(i)">@i</button>
+                                </li>
+                            }
+
+                            <li class="page-item @(!formatosResult.HasNextPage ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => LoadPage(formatosResult.PageNumber + 1)">Siguiente</button>
+                            </li>
+                            <li class="page-item @(formatosResult.PageNumber == formatosResult.TotalPages ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => LoadPage(formatosResult.TotalPages)">Última</button>
+                            </li>
+                        </ul>
+                    </nav>
+
+                    <div class="alert alert-secondary mt-3">
+                        <small>Mostrando <strong>@formatosResult.Items.Count</strong> de <strong>@formatosResult.TotalCount</strong> formatos (Página @formatosResult.PageNumber de @formatosResult.TotalPages)</small>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-info">
+                        No hay formatos registrados
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Modal de Nuevo Formato -->
+@if (mostrarFormulario)
+{
+    <div class="modal d-block" style="background-color: rgba(0,0,0,0.5);" role="dialog">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Nuevo Formato</h5>
+                    <button type="button" class="btn-close" @onclick="OcultarFormulario"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="nuevoNombre" class="form-label">Nombre</label>
+                        <input type="text" class="form-control" id="nuevoNombre" @bind="nuevoFormato.Nombre" placeholder="Nombre del formato">
+                    </div>
+                    <div class="mb-3">
+                        <label for="nuevasUnidades" class="form-label">Unidades</label>
+                        <input type="number" class="form-control" id="nuevasUnidades" @bind="nuevoFormato.Unidades" placeholder="10">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="OcultarFormulario">Cancelar</button>
+                    <button type="button" class="btn btn-primary" @onclick="CrearFormato">Crear</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private PaginatedResult<FormatoDto>? formatosResult;
+    private bool cargando = true;
+    private int paginaActual = 1;
+    private const int elementosPorPagina = 10;
+    private bool mostrarFormulario = false;
+
+    private class NuevoFormatoForm
+    {
+        public string Nombre { get; set; } = string.Empty;
+        public int Unidades { get; set; }
+    }
+
+    private NuevoFormatoForm nuevoFormato = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPage(1);
+    }
+
+    private async Task LoadPage(int page)
+    {
+        try
+        {
+            cargando = true;
+            paginaActual = page;
+            formatosResult = await ProductosService.GetFormatosAsync(page, elementosPorPagina);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private async Task RefreshData()
+    {
+        await LoadPage(paginaActual);
+    }
+
+    private async Task DeleteFormato(int id)
+    {
+        var confirmed = await JSRuntime.InvokeAsync<bool>("SwalHelper.confirmDelete", "¿Eliminar formato?", "Esta acción no se puede deshacer.");
+        if (!confirmed) return;
+
+        try
+        {
+            await ProductosService.DeleteFormatoAsync(id);
+            await RefreshData();
+            await JSRuntime.InvokeVoidAsync("SwalHelper.success", "Éxito", "Formato eliminado correctamente");
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("SwalHelper.error", "Error", $"Error al eliminar: {ex.Message}");
+        }
+    }
+
+    private void MostrarFormulario()
+    {
+        nuevoFormato = new();
+        mostrarFormulario = true;
+    }
+
+    private void OcultarFormulario()
+    {
+        mostrarFormulario = false;
+    }
+
+    private async Task CrearFormato()
+    {
+        if (string.IsNullOrWhiteSpace(nuevoFormato.Nombre) || nuevoFormato.Unidades == 0)
+        {
+            await JSRuntime.InvokeVoidAsync("SwalHelper.warning", "Validación", "Por favor completa todos los campos");
+            return;
+        }
+
+        try
+        {
+            await ProductosService.CreateFormatoAsync(nuevoFormato.Nombre, nuevoFormato.Unidades);
+            OcultarFormulario();
+            await RefreshData();
+            await JSRuntime.InvokeVoidAsync("SwalHelper.success", "Éxito", "Formato creado exitosamente");
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("SwalHelper.error", "Error", $"Error al crear formato: {ex.Message}");
+        }
+    }
+
+    @inject IJSRuntime JSRuntime
+}

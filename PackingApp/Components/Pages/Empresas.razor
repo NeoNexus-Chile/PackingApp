@@ -1,0 +1,245 @@
+@page "/empresas"
+@rendermode InteractiveServer
+
+@using PackingApp.Services
+@inject EmpresasService EmpresasService
+
+<PageTitle>Empresas</PageTitle>
+
+<div class="container-fluid mt-4">
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <h1>Empresas</h1>
+        </div>
+        <div class="col-md-6 text-end">
+            <button class="btn btn-success me-2" @onclick="MostrarFormulario">
+                <span class="bi bi-plus-circle"></span> Nuevo
+            </button>
+            <button class="btn btn-primary" @onclick="RefreshData">
+                <span class="bi bi-arrow-clockwise"></span> Actualizar
+            </button>
+        </div>
+    </div>
+
+    @if (cargando)
+    {
+        <div class="alert alert-info">
+            <span class="spinner-border spinner-border-sm me-2"></span>
+            Cargando empresas...
+        </div>
+    }
+    else if (empresasResult == null)
+    {
+        <div class="alert alert-danger">
+            Error al cargar las empresas
+        </div>
+    }
+    else
+    {
+        <div class="card">
+            <div class="card-body">
+                @if (empresasResult.Items.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Nombre</th>
+                                    <th>Razón Social</th>
+                                    <th>Email</th>
+                                    <th>Teléfono</th>
+                                    <th>Fecha Creación</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var empresa in empresasResult.Items)
+                                {
+                                    <tr>
+                                        <td><strong>@empresa.Nombre</strong></td>
+                                        <td>@empresa.RazonSocial</td>
+                                        <td>@empresa.Email</td>
+                                        <td>@empresa.Telefono</td>
+                                        <td>@empresa.FechaCreacion</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteEmpresa(empresa.Id)">
+                                                <span class="bi bi-trash"></span>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Paginación -->
+                    <nav aria-label="Paginación">
+                        <ul class="pagination justify-content-center mt-4">
+                            <li class="page-item @(empresasResult.PageNumber == 1 ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => LoadPage(1)">Primera</button>
+                            </li>
+                            <li class="page-item @(!empresasResult.HasPreviousPage ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => LoadPage(empresasResult.PageNumber - 1)">Anterior</button>
+                            </li>
+
+                            @for (int i = Math.Max(1, empresasResult.PageNumber - 2); i <= Math.Min(empresasResult.TotalPages, empresasResult.PageNumber + 2); i++)
+                            {
+                                <li class="page-item @(i == empresasResult.PageNumber ? "active" : "")">
+                                    <button class="page-link" @onclick="() => LoadPage(i)">@i</button>
+                                </li>
+                            }
+
+                            <li class="page-item @(!empresasResult.HasNextPage ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => LoadPage(empresasResult.PageNumber + 1)">Siguiente</button>
+                            </li>
+                            <li class="page-item @(empresasResult.PageNumber == empresasResult.TotalPages ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => LoadPage(empresasResult.TotalPages)">Última</button>
+                            </li>
+                        </ul>
+                    </nav>
+
+                    <div class="alert alert-secondary mt-3">
+                        <small>Mostrando <strong>@empresasResult.Items.Count</strong> de <strong>@empresasResult.TotalCount</strong> empresas (Página @empresasResult.PageNumber de @empresasResult.TotalPages)</small>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-info">
+                        No hay empresas registradas
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Modal de Nueva Empresa -->
+@if (mostrarFormulario)
+{
+    <div class="modal d-block" style="background-color: rgba(0,0,0,0.5);" role="dialog">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Nueva Empresa</h5>
+                    <button type="button" class="btn-close" @onclick="OcultarFormulario"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="nuevoNombre" class="form-label">Nombre</label>
+                        <input type="text" class="form-control" id="nuevoNombre" @bind="nuevaEmpresa.Nombre" placeholder="Nombre de la empresa">
+                    </div>
+                    <div class="mb-3">
+                        <label for="nuevoRut" class="form-label">RUT</label>
+                        <input type="number" class="form-control" id="nuevoRut" @bind="nuevaEmpresa.Rut" placeholder="12345678">
+                    </div>
+                    <div class="mb-3">
+                        <label for="nuevoDv" class="form-label">Dígito Verificador</label>
+                        <input type="text" class="form-control" id="nuevoDv" @bind="nuevaEmpresa.Dv" placeholder="0-9,K" maxlength="1">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="OcultarFormulario">Cancelar</button>
+                    <button type="button" class="btn btn-primary" @onclick="CrearEmpresa">Crear</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private PaginatedResult<EmpresaDto>? empresasResult;
+    private bool cargando = true;
+    private int paginaActual = 1;
+    private const int elementosPorPagina = 10;
+    private bool mostrarFormulario = false;
+
+    private class NuevaEmpresaForm
+    {
+        public string Nombre { get; set; } = string.Empty;
+        public int Rut { get; set; }
+        public string Dv { get; set; } = string.Empty;
+    }
+
+    private NuevaEmpresaForm nuevaEmpresa = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPage(1);
+    }
+
+    private async Task LoadPage(int page)
+    {
+        try
+        {
+            cargando = true;
+            paginaActual = page;
+            empresasResult = await EmpresasService.GetEmpresasAsync(page, elementosPorPagina);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private async Task RefreshData()
+    {
+        await LoadPage(paginaActual);
+    }
+
+    private async Task DeleteEmpresa(int id)
+    {
+        var confirmed = await JSRuntime.InvokeAsync<bool>("SwalHelper.confirmDelete", "¿Eliminar empresa?", "Esta acción no se puede deshacer.");
+        if (!confirmed) return;
+
+        try
+        {
+            await EmpresasService.DeleteEmpresaAsync(id);
+            await RefreshData();
+            await JSRuntime.InvokeVoidAsync("SwalHelper.success", "Éxito", "Empresa eliminada correctamente");
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("SwalHelper.error", "Error", $"Error al eliminar: {ex.Message}");
+        }
+    }
+
+    private void MostrarFormulario()
+    {
+        nuevaEmpresa = new();
+        mostrarFormulario = true;
+    }
+
+    private void OcultarFormulario()
+    {
+        mostrarFormulario = false;
+    }
+
+    private async Task CrearEmpresa()
+    {
+        if (string.IsNullOrWhiteSpace(nuevaEmpresa.Nombre) || 
+            nuevaEmpresa.Rut == 0 ||
+            string.IsNullOrWhiteSpace(nuevaEmpresa.Dv))
+        {
+            await JSRuntime.InvokeVoidAsync("SwalHelper.warning", "Validación", "Por favor completa todos los campos");
+            return;
+        }
+
+        try
+        {
+            await EmpresasService.CreateEmpresaAsync(nuevaEmpresa.Nombre, nuevaEmpresa.Rut, nuevaEmpresa.Dv);
+            OcultarFormulario();
+            await RefreshData();
+            await JSRuntime.InvokeVoidAsync("SwalHelper.success", "Éxito", "Empresa creada exitosamente");
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("SwalHelper.error", "Error", $"Error al crear empresa: {ex.Message}");
+        }
+    }
+
+    @inject IJSRuntime JSRuntime
+}

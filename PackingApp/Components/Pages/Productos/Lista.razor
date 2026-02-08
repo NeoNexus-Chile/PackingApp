@@ -1,0 +1,291 @@
+@page "/productos/lista"
+@rendermode InteractiveServer
+
+@using PackingApp.Services
+@inject ProductosService ProductosService
+
+<PageTitle>Lista de Productos</PageTitle>
+
+<div class="container-fluid mt-4">
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <h1>Lista de Productos</h1>
+        </div>
+        <div class="col-md-6 text-end">
+            <button class="btn btn-success me-2" @onclick="MostrarFormulario">
+                <span class="bi bi-plus-circle"></span> Nuevo
+            </button>
+            <button class="btn btn-primary" @onclick="RefreshData">
+                <span class="bi bi-arrow-clockwise"></span> Actualizar
+            </button>
+        </div>
+    </div>
+
+    @if (cargando)
+    {
+        <div class="alert alert-info">
+            <span class="spinner-border spinner-border-sm me-2"></span>
+            Cargando productos...
+        </div>
+    }
+    else if (productosResult == null)
+    {
+        <div class="alert alert-danger">
+            Error al cargar los productos
+        </div>
+    }
+    else
+    {
+        <div class="card">
+            <div class="card-body">
+                @if (productosResult.Items.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Código</th>
+                                    <th>Nombre</th>
+                                    <th>Descripción</th>
+                                    <th>Fecha Creación</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var producto in productosResult.Items)
+                                {
+                                    <tr>
+                                        <td><code>@producto.CodigoProducto</code></td>
+                                        <td><strong>@producto.Nombre</strong></td>
+                                        <td>@producto.Descripcion</td>
+                                        <td>@producto.FechaCreacion</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteProducto(producto.Id)">
+                                                <span class="bi bi-trash"></span>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Paginación -->
+                    <nav aria-label="Paginación">
+                        <ul class="pagination justify-content-center mt-4">
+                            <li class="page-item @(productosResult.PageNumber == 1 ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => LoadPage(1)">Primera</button>
+                            </li>
+                            <li class="page-item @(!productosResult.HasPreviousPage ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => LoadPage(productosResult.PageNumber - 1)">Anterior</button>
+                            </li>
+
+                            @for (int i = Math.Max(1, productosResult.PageNumber - 2); i <= Math.Min(productosResult.TotalPages, productosResult.PageNumber + 2); i++)
+                            {
+                                <li class="page-item @(i == productosResult.PageNumber ? "active" : "")">
+                                    <button class="page-link" @onclick="() => LoadPage(i)">@i</button>
+                                </li>
+                            }
+
+                            <li class="page-item @(!productosResult.HasNextPage ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => LoadPage(productosResult.PageNumber + 1)">Siguiente</button>
+                            </li>
+                            <li class="page-item @(productosResult.PageNumber == productosResult.TotalPages ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => LoadPage(productosResult.TotalPages)">Última</button>
+                            </li>
+                        </ul>
+                    </nav>
+
+                    <div class="alert alert-secondary mt-3">
+                        <small>Mostrando <strong>@productosResult.Items.Count</strong> de <strong>@productosResult.TotalCount</strong> productos (Página @productosResult.PageNumber de @productosResult.TotalPages)</small>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-info">
+                        No hay productos registrados
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Modal de Nuevo Producto -->
+@if (mostrarFormulario)
+{
+    <div class="modal d-block" style="background-color: rgba(0,0,0,0.5);" role="dialog">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Nuevo Producto</h5>
+                    <button type="button" class="btn-close" @onclick="OcultarFormulario"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="nuevoNombre" class="form-label">Nombre</label>
+                        <input type="text" class="form-control" id="nuevoNombre" @bind="nuevoProducto.Nombre" placeholder="Nombre del producto">
+                    </div>
+                    <div class="mb-3">
+                        <label for="nuevoFormato" class="form-label">Formato</label>
+                        <select class="form-select" id="nuevoFormato" @bind="nuevoProducto.FormatoId">
+                            <option value="0">Seleccionar Formato...</option>
+                            @foreach (var formato in formatos)
+                            {
+                                <option value="@formato.Id">@formato.Nombre</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="nuevaPresentacion" class="form-label">Presentación</label>
+                        <select class="form-select" id="nuevaPresentacion" @bind="nuevoProducto.PresentacionId">
+                            <option value="0">Seleccionar Presentación...</option>
+                            @foreach (var presentacion in presentaciones)
+                            {
+                                <option value="@presentacion.Id">@presentacion.Nombre</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="nuevoGrupo" class="form-label">Grupo</label>
+                        <select class="form-select" id="nuevoGrupo" @bind="nuevoProducto.GrupoId">
+                            <option value="0">Seleccionar Grupo...</option>
+                            @foreach (var grupo in grupos)
+                            {
+                                <option value="@grupo.Id">@grupo.Nombre</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="OcultarFormulario">Cancelar</button>
+                    <button type="button" class="btn btn-primary" @onclick="CrearProducto">Crear</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private PaginatedResult<ProductoDto>? productosResult;
+    private bool cargando = true;
+    private int paginaActual = 1;
+    private const int elementosPorPagina = 10;
+    private bool mostrarFormulario = false;
+
+    private List<FormatoDto> formatos = new();
+    private List<PresentacionDto> presentaciones = new();
+    private List<GrupoDto> grupos = new();
+
+    private class NuevoProductoForm
+    {
+        public string Nombre { get; set; } = string.Empty;
+        public int FormatoId { get; set; }
+        public int PresentacionId { get; set; }
+        public int GrupoId { get; set; }
+    }
+
+    private NuevoProductoForm nuevoProducto = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarDatos();
+        await LoadPage(1);
+    }
+
+    private async Task CargarDatos()
+    {
+        try
+        {
+            formatos = await ProductosService.GetFormatosListAsync();
+            presentaciones = await ProductosService.GetPresentacionesListAsync();
+            grupos = await ProductosService.GetGruposListAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error al cargar datos: {ex.Message}");
+        }
+    }
+
+    private async Task LoadPage(int page)
+    {
+        try
+        {
+            cargando = true;
+            paginaActual = page;
+            productosResult = await ProductosService.GetProductosAsync(page, elementosPorPagina);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private async Task RefreshData()
+    {
+        await CargarDatos();
+        await LoadPage(paginaActual);
+    }
+
+    private async Task DeleteProducto(int id)
+    {
+        var confirmed = await JSRuntime.InvokeAsync<bool>("SwalHelper.confirmDelete", "¿Eliminar producto?", "Esta acción no se puede deshacer.");
+        if (!confirmed) return;
+
+        try
+        {
+            await ProductosService.DeleteProductoAsync(id);
+            await RefreshData();
+            await JSRuntime.InvokeVoidAsync("SwalHelper.success", "Éxito", "Producto eliminado correctamente");
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("SwalHelper.error", "Error", $"Error al eliminar: {ex.Message}");
+        }
+    }
+
+    private void MostrarFormulario()
+    {
+        nuevoProducto = new();
+        mostrarFormulario = true;
+    }
+
+    private void OcultarFormulario()
+    {
+        mostrarFormulario = false;
+    }
+
+    private async Task CrearProducto()
+    {
+        if (string.IsNullOrWhiteSpace(nuevoProducto.Nombre) || 
+            nuevoProducto.FormatoId == 0 ||
+            nuevoProducto.PresentacionId == 0 ||
+            nuevoProducto.GrupoId == 0)
+        {
+            await JSRuntime.InvokeVoidAsync("SwalHelper.warning", "Validación", "Por favor completa todos los campos");
+            return;
+        }
+
+        try
+        {
+            await ProductosService.CreateProductoAsync(
+                nuevoProducto.Nombre, 
+                nuevoProducto.FormatoId, 
+                nuevoProducto.PresentacionId, 
+                nuevoProducto.GrupoId);
+            OcultarFormulario();
+            await RefreshData();
+            await JSRuntime.InvokeVoidAsync("SwalHelper.success", "Éxito", "Producto creado exitosamente");
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("SwalHelper.error", "Error", $"Error al crear producto: {ex.Message}");
+        }
+    }
+
+    @inject IJSRuntime JSRuntime
+}

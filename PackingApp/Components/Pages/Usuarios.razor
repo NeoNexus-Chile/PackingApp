@@ -1,0 +1,258 @@
+@page "/usuarios"
+@rendermode InteractiveServer
+
+@using PackingApp.Services
+@inject UsuariosService UsuariosService
+
+<PageTitle>Usuarios</PageTitle>
+
+<div class="container-fluid mt-4">
+<div class="row mb-4">
+    <div class="col-md-6">
+        <h1>Usuarios</h1>
+    </div>
+    <div class="col-md-6 text-end">
+        <button class="btn btn-success me-2" @onclick="MostrarFormulario">
+            <span class="bi bi-plus-circle"></span> Nuevo
+        </button>
+        <button class="btn btn-primary" @onclick="RefreshData">
+            <span class="bi bi-arrow-clockwise"></span> Actualizar
+        </button>
+    </div>
+</div>
+
+    @if (cargando)
+    {
+        <div class="alert alert-info">
+            <span class="spinner-border spinner-border-sm me-2"></span>
+            Cargando usuarios...
+        </div>
+    }
+    else if (usuariosResult == null)
+    {
+        <div class="alert alert-danger">
+            Error al cargar los usuarios
+        </div>
+    }
+    else
+    {
+        <div class="card">
+            <div class="card-body">
+                @if (usuariosResult.Items.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Usuario</th>
+                                    <th>Email</th>
+                                    <th>Estado</th>
+                                    <th>Confirmación</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var usuario in usuariosResult.Items)
+                                {
+                                    <tr>
+                                        <td>
+                                            <strong>@usuario.NombreUsuario</strong>
+                                        </td>
+                                        <td>@usuario.Email</td>
+                                        <td>
+                                            @if (usuario.EstaActivo)
+                                            {
+                                                <span class="badge bg-success">Activo</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-danger">Bloqueado</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <span class="badge @(usuario.FechaRegistro == "Confirmado" ? "bg-info" : "bg-warning")">
+                                                @usuario.FechaRegistro
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteUsuario(usuario.Id)">
+                                                <span class="bi bi-trash"></span>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Paginación -->
+                    <nav aria-label="Paginación">
+                        <ul class="pagination justify-content-center mt-4">
+                            <li class="page-item @(usuariosResult.PageNumber == 1 ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => LoadPage(1)">Primera</button>
+                            </li>
+                            <li class="page-item @(!usuariosResult.HasPreviousPage ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => LoadPage(usuariosResult.PageNumber - 1)">Anterior</button>
+                            </li>
+
+                            @for (int i = Math.Max(1, usuariosResult.PageNumber - 2); i <= Math.Min(usuariosResult.TotalPages, usuariosResult.PageNumber + 2); i++)
+                            {
+                                <li class="page-item @(i == usuariosResult.PageNumber ? "active" : "")">
+                                    <button class="page-link" @onclick="() => LoadPage(i)">@i</button>
+                                </li>
+                            }
+
+                            <li class="page-item @(!usuariosResult.HasNextPage ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => LoadPage(usuariosResult.PageNumber + 1)">Siguiente</button>
+                            </li>
+                            <li class="page-item @(usuariosResult.PageNumber == usuariosResult.TotalPages ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => LoadPage(usuariosResult.TotalPages)">Última</button>
+                            </li>
+                        </ul>
+                    </nav>
+
+                    <div class="alert alert-secondary mt-3">
+                        <small>Mostrando <strong>@usuariosResult.Items.Count</strong> de <strong>@usuariosResult.TotalCount</strong> usuarios (Página @usuariosResult.PageNumber de @usuariosResult.TotalPages)</small>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-info">
+                        No hay usuarios registrados
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Modal de Nuevo Usuario -->
+@if (mostrarFormulario)
+{
+    <div class="modal d-block" style="background-color: rgba(0,0,0,0.5);" role="dialog">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Nuevo Usuario</h5>
+                    <button type="button" class="btn-close" @onclick="OcultarFormulario"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="nuevoEmail" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="nuevoEmail" @bind="nuevoUsuario.Email" placeholder="ejemplo@email.com">
+                    </div>
+                    <div class="mb-3">
+                        <label for="nuevoUsername" class="form-label">Nombre de Usuario</label>
+                        <input type="text" class="form-control" id="nuevoUsername" @bind="nuevoUsuario.NombreUsuario" placeholder="usuario">
+                    </div>
+                    <div class="mb-3">
+                        <label for="nuevaPassword" class="form-label">Contraseña</label>
+                        <input type="password" class="form-control" id="nuevaPassword" @bind="nuevoUsuario.Password" placeholder="Contraseña">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="OcultarFormulario">Cancelar</button>
+                    <button type="button" class="btn btn-primary" @onclick="CrearUsuario">Crear</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private PaginatedResult<UsuarioDto>? usuariosResult;
+    private bool cargando = true;
+    private int paginaActual = 1;
+    private const int elementosPorPagina = 10;
+    private bool mostrarFormulario = false;
+    
+    private class NuevoUsuarioForm
+    {
+        public string Email { get; set; } = string.Empty;
+        public string NombreUsuario { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+    }
+    
+    private NuevoUsuarioForm nuevoUsuario = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPage(1);
+    }
+
+    private async Task LoadPage(int page)
+    {
+        try
+        {
+            cargando = true;
+            paginaActual = page;
+            usuariosResult = await UsuariosService.GetUsuariosAsync(page, elementosPorPagina);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private async Task RefreshData()
+    {
+        await LoadPage(paginaActual);
+    }
+
+    private async Task DeleteUsuario(string id)
+    {
+        var confirmed = await JSRuntime.InvokeAsync<bool>("SwalHelper.confirmDelete", "¿Eliminar usuario?", "Esta acción no se puede deshacer.");
+        if (!confirmed) return;
+
+        try
+        {
+            await UsuariosService.DeleteUsuarioAsync(id);
+            await RefreshData();
+            await JSRuntime.InvokeVoidAsync("SwalHelper.success", "Éxito", "Usuario eliminado correctamente");
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("SwalHelper.error", "Error", $"Error al eliminar: {ex.Message}");
+        }
+    }
+
+    private void MostrarFormulario()
+    {
+        nuevoUsuario = new();
+        mostrarFormulario = true;
+    }
+
+    private void OcultarFormulario()
+    {
+        mostrarFormulario = false;
+    }
+
+    private async Task CrearUsuario()
+    {
+        if (string.IsNullOrWhiteSpace(nuevoUsuario.Email) || 
+            string.IsNullOrWhiteSpace(nuevoUsuario.NombreUsuario) ||
+            string.IsNullOrWhiteSpace(nuevoUsuario.Password))
+        {
+            await JSRuntime.InvokeVoidAsync("SwalHelper.warning", "Validación", "Por favor completa todos los campos");
+            return;
+        }
+
+        try
+        {
+            await UsuariosService.CreateUsuarioAsync(nuevoUsuario.Email, nuevoUsuario.NombreUsuario, nuevoUsuario.Password);
+            OcultarFormulario();
+            await RefreshData();
+            await JSRuntime.InvokeVoidAsync("SwalHelper.success", "Éxito", "Usuario creado exitosamente");
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("SwalHelper.error", "Error", $"Error al crear usuario: {ex.Message}");
+        }
+    }
+
+    @inject IJSRuntime JSRuntime
+}

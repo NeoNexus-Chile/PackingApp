@@ -1,0 +1,234 @@
+@page "/productos/grupos"
+@rendermode InteractiveServer
+
+@using PackingApp.Services
+@inject ProductosService ProductosService
+
+<PageTitle>Grupos de Productos</PageTitle>
+
+<div class="container-fluid mt-4">
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <h1>Grupos de Productos</h1>
+        </div>
+        <div class="col-md-6 text-end">
+            <button class="btn btn-success me-2" @onclick="MostrarFormulario">
+                <span class="bi bi-plus-circle"></span> Nuevo
+            </button>
+            <button class="btn btn-primary" @onclick="RefreshData">
+                <span class="bi bi-arrow-clockwise"></span> Actualizar
+            </button>
+        </div>
+    </div>
+
+    @if (cargando)
+    {
+        <div class="alert alert-info">
+            <span class="spinner-border spinner-border-sm me-2"></span>
+            Cargando grupos...
+        </div>
+    }
+    else if (gruposResult == null)
+    {
+        <div class="alert alert-danger">
+            Error al cargar los grupos
+        </div>
+    }
+    else
+    {
+        <div class="card">
+            <div class="card-body">
+                @if (gruposResult.Items.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Nombre</th>
+                                    <th>Descripción</th>
+                                    <th>Fecha Creación</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var grupo in gruposResult.Items)
+                                {
+                                    <tr>
+                                        <td><strong>@grupo.Nombre</strong></td>
+                                        <td>@grupo.Descripcion</td>
+                                        <td>@grupo.FechaCreacion</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteGrupo(grupo.Id)">
+                                                <span class="bi bi-trash"></span>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Paginación -->
+                    <nav aria-label="Paginación">
+                        <ul class="pagination justify-content-center mt-4">
+                            <li class="page-item @(gruposResult.PageNumber == 1 ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => LoadPage(1)">Primera</button>
+                            </li>
+                            <li class="page-item @(!gruposResult.HasPreviousPage ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => LoadPage(gruposResult.PageNumber - 1)">Anterior</button>
+                            </li>
+
+                            @for (int i = Math.Max(1, gruposResult.PageNumber - 2); i <= Math.Min(gruposResult.TotalPages, gruposResult.PageNumber + 2); i++)
+                            {
+                                <li class="page-item @(i == gruposResult.PageNumber ? "active" : "")">
+                                    <button class="page-link" @onclick="() => LoadPage(i)">@i</button>
+                                </li>
+                            }
+
+                            <li class="page-item @(!gruposResult.HasNextPage ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => LoadPage(gruposResult.PageNumber + 1)">Siguiente</button>
+                            </li>
+                            <li class="page-item @(gruposResult.PageNumber == gruposResult.TotalPages ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => LoadPage(gruposResult.TotalPages)">Última</button>
+                            </li>
+                        </ul>
+                    </nav>
+
+                    <div class="alert alert-secondary mt-3">
+                        <small>Mostrando <strong>@gruposResult.Items.Count</strong> de <strong>@gruposResult.TotalCount</strong> grupos (Página @gruposResult.PageNumber de @gruposResult.TotalPages)</small>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-info">
+                        No hay grupos registrados
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Modal de Nuevo Grupo -->
+@if (mostrarFormulario)
+{
+    <div class="modal d-block" style="background-color: rgba(0,0,0,0.5);" role="dialog">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Nuevo Grupo</h5>
+                    <button type="button" class="btn-close" @onclick="OcultarFormulario"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="nuevoNombre" class="form-label">Nombre</label>
+                        <input type="text" class="form-control" id="nuevoNombre" @bind="nuevoGrupo.Nombre" placeholder="Nombre del grupo">
+                    </div>
+                    <div class="mb-3">
+                        <label for="nuevaUrl" class="form-label">URL (Opcional)</label>
+                        <input type="text" class="form-control" id="nuevaUrl" @bind="nuevoGrupo.UrlGrupo" placeholder="https://ejemplo.com">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="OcultarFormulario">Cancelar</button>
+                    <button type="button" class="btn btn-primary" @onclick="CrearGrupo">Crear</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private PaginatedResult<GrupoDto>? gruposResult;
+    private bool cargando = true;
+    private int paginaActual = 1;
+    private const int elementosPorPagina = 10;
+    private bool mostrarFormulario = false;
+
+    private class NuevoGrupoForm
+    {
+        public string Nombre { get; set; } = string.Empty;
+        public string? UrlGrupo { get; set; }
+    }
+
+    private NuevoGrupoForm nuevoGrupo = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPage(1);
+    }
+
+    private async Task LoadPage(int page)
+    {
+        try
+        {
+            cargando = true;
+            paginaActual = page;
+            gruposResult = await ProductosService.GetGruposAsync(page, elementosPorPagina);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private async Task RefreshData()
+    {
+        await LoadPage(paginaActual);
+    }
+
+    private async Task DeleteGrupo(int id)
+    {
+        var confirmed = await JSRuntime.InvokeAsync<bool>("SwalHelper.confirmDelete", "¿Eliminar grupo?", "Esta acción no se puede deshacer.");
+        if (!confirmed) return;
+
+        try
+        {
+            await ProductosService.DeleteGrupoAsync(id);
+            await RefreshData();
+            await JSRuntime.InvokeVoidAsync("SwalHelper.success", "Éxito", "Grupo eliminado correctamente");
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("SwalHelper.error", "Error", $"Error al eliminar: {ex.Message}");
+        }
+    }
+
+    private void MostrarFormulario()
+    {
+        nuevoGrupo = new();
+        mostrarFormulario = true;
+    }
+
+    private void OcultarFormulario()
+    {
+        mostrarFormulario = false;
+    }
+
+    private async Task CrearGrupo()
+    {
+        if (string.IsNullOrWhiteSpace(nuevoGrupo.Nombre))
+        {
+            await JSRuntime.InvokeVoidAsync("SwalHelper.warning", "Validación", "Por favor completa el nombre");
+            return;
+        }
+
+        try
+        {
+            await ProductosService.CreateGrupoAsync(nuevoGrupo.Nombre, nuevoGrupo.UrlGrupo);
+            OcultarFormulario();
+            await RefreshData();
+            await JSRuntime.InvokeVoidAsync("SwalHelper.success", "Éxito", "Grupo creado exitosamente");
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("SwalHelper.error", "Error", $"Error al crear grupo: {ex.Message}");
+        }
+    }
+
+    @inject IJSRuntime JSRuntime
+}

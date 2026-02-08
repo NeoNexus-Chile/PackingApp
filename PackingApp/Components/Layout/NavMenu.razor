@@ -1,6 +1,7 @@
 ﻿@implements IDisposable
 
 @inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
 
 <div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
@@ -10,8 +11,8 @@
 
 <input type="checkbox" title="Navigation menu" class="navbar-toggler" />
 
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="nav flex-column">
+<div class="nav-scrollable">
+<nav class="nav flex-column">
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
                 <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
@@ -19,21 +20,53 @@
         </div>
 
         <div class="nav-item px-3">
-            <NavLink class="nav-link" href="counter">
-                <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Counter
+            <NavLink class="nav-link" href="pedidos">
+                <span class="bi bi-cart-fill-nav-menu" aria-hidden="true"></span> Pedidos
             </NavLink>
         </div>
 
         <div class="nav-item px-3">
-            <NavLink class="nav-link" href="weather">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Weather
+            <NavLink class="nav-link" href="empresas">
+                <span class="bi bi-building-nav-menu" aria-hidden="true"></span> Empresas
             </NavLink>
         </div>
 
         <div class="nav-item px-3">
-            <NavLink class="nav-link" href="auth">
-                <span class="bi bi-lock-nav-menu" aria-hidden="true"></span> Auth Required
+            <NavLink class="nav-link" href="usuarios">
+                <span class="bi bi-people-fill-nav-menu" aria-hidden="true"></span> Usuarios
             </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <button class="nav-link collapsed" @onclick="ToggleProductosMenu" style="border: none; background: none; width: 100%; text-align: left;">
+                <span class="bi bi-box-seam-nav-menu" aria-hidden="true"></span> Productos
+                <span class="bi @(mostrarProductos ? "bi-chevron-up" : "bi-chevron-down") float-end"></span>
+            </button>
+            @if (mostrarProductos || cierrandoProductos)
+            {
+                <div class="nav-submenu ps-4" style="@(cierrandoProductos ? "animation: fadeOut 0.3s ease-in-out forwards;" : "")">
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="productos/lista">
+                            <span class="bi bi-list-ul-nav-menu" aria-hidden="true"></span> Lista
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="productos/formatos">
+                            <span class="bi bi-file-text-nav-menu" aria-hidden="true"></span> Formatos
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="productos/presentaciones">
+                            <span class="bi bi-layout-wtf-nav-menu" aria-hidden="true"></span> Presentaciones
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="productos/grupos">
+                            <span class="bi bi-diagram-3-nav-menu" aria-hidden="true"></span> Grupos
+                        </NavLink>
+                    </div>
+                </div>
+            }
         </div>
 
         <AuthorizeView>
@@ -71,6 +104,8 @@
 
 @code {
     private string? currentUrl;
+    private bool mostrarProductos = false;
+    private bool cierrandoProductos = false;
 
     protected override void OnInitialized()
     {
@@ -81,7 +116,57 @@
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
         currentUrl = NavigationManager.ToBaseRelativePath(e.Location);
+        
+        // Cerrar el menú mobile cuando se navega
+        CloseMenuMobile();
+        
+        // Cerrar el submenú de productos si está abierto
+        if (mostrarProductos)
+        {
+            _ = ClosProductosSubmenuAsync();
+        }
+        
         StateHasChanged();
+    }
+
+    private void CloseMenuMobile()
+    {
+        // Dispara la función JavaScript para cerrar el menú
+        _ = JSRuntime.InvokeVoidAsync("NavMenu.closeMenuOnNavigate");
+    }
+
+    private async Task ClosProductosSubmenuAsync()
+    {
+        cierrandoProductos = true;
+        StateHasChanged();
+        await Task.Delay(300);
+        mostrarProductos = false;
+        cierrandoProductos = false;
+        StateHasChanged();
+    }
+
+    private async Task ToggleProductosMenu()
+    {
+        if (mostrarProductos)
+        {
+            // Cerrando el menú
+            cierrandoProductos = true;
+            StateHasChanged();
+            
+            // Esperar a que termine la animación (300ms)
+            await Task.Delay(300);
+            
+            mostrarProductos = false;
+            cierrandoProductos = false;
+            StateHasChanged();
+        }
+        else
+        {
+            // Abriendo el menú
+            mostrarProductos = true;
+            cierrandoProductos = false;
+            StateHasChanged();
+        }
     }
 
     public void Dispose()

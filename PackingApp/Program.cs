@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using PackingApp.Components;
 using PackingApp.Components.Account;
 using PackingApp.Data;
+using PackingApp.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -36,6 +37,12 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
     .AddDefaultTokenProviders();
 
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
+
+// Agregar servicios de aplicación
+builder.Services.AddScoped<UsuariosService>();
+builder.Services.AddScoped<EmpresasService>();
+builder.Services.AddScoped<ProductosService>();
+builder.Services.AddScoped<PedidosService>();
 
 var app = builder.Build();
 
